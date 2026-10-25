@@ -1,5 +1,6 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, Menu, session } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { fork } = require('child_process');
 const Brain = require('./brain');
 const Library = require('./library');
@@ -10,6 +11,24 @@ const EDGE = 18;                       // gap between floating panels and the wi
 const MODE_D = 50;                     // round theme button, bottom-left
 const IDLE_SLEEP_MS = 4 * 60 * 1000;   // voice engine sleeps after 4 idle minutes (frees its memory)
 const CACHE_MAX = 48 * 1024 * 1024;    // browser cache cap
+// 0.5: the app is now called Nightingale Reader. Carry the voice, settings and reading list over
+// from the old "Reader Browser" folder so nothing has to be downloaded or set up again.
+try {
+  const appData = app.getPath('appData');
+  const oldDir = path.join(appData, 'Reader Browser');
+  const newDir = path.join(appData, 'Nightingale Reader');
+  if (!fs.existsSync(newDir) && fs.existsSync(oldDir)) {
+    try { fs.renameSync(oldDir, newDir); }
+    catch (_) {   // old folder busy: copy what matters instead
+      const skip = /[\\/](Cache|Code Cache|GPUCache|DawnCache|Crashpad)([\\/]|$)/;
+      fs.cpSync(oldDir, newDir, { recursive: true, filter: (src) => !skip.test(src) });
+    }
+  }
+  app.setPath('userData', newDir);
+} catch (_) {}
+app.setAppUserModelId('com.brayconsultants.nightingalereader');
+const ICON = path.join(__dirname, 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+
 const HOME = 'file://' + path.join(__dirname, 'start.html').replace(/\\/g, '/');
 
 // Keep audio and chapter-hopping alive when the window is minimized; switch off Chromium extras we never use.
@@ -216,7 +235,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1240, height: 820, minWidth: 760, minHeight: 520,
     backgroundColor: lib.d.prefs.theme === 'light' ? '#f4f1ea' : '#15171f',
-    title: 'Reader Browser',
+    title: 'Nightingale Reader',
+    icon: ICON,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload-ui.js'),

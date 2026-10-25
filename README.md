@@ -1,8 +1,10 @@
-# Nightingale Reader
+<p align="center"><img src="assets/logo-512.png" width="128" height="128" alt="Nightingale Reader logo: a cream white nightingale singing under a crescent moon"></p>
 
-**A light Windows browser that reads web novels aloud, with a natural voice that runs on your own PC.**
+<h1 align="center">Nightingale Reader</h1>
 
-Paste a chapter link and press play. It reads the chapter, highlights each paragraph as it goes, then opens the next chapter by itself and keeps reading. The app calls itself **Reader Browser**; Nightingale Reader is the project name.
+<p align="center"><b>A light Windows browser that reads web novels aloud, with a natural voice that runs on your own PC.</b></p>
+
+Paste a chapter link and press play. It reads the chapter, highlights each paragraph as it goes, then opens the next chapter by itself and keeps reading.
 
 ![Reading a chapter: the paragraph being read is highlighted, with the player at the bottom and the tool rail on the right](docs/screenshots/02-reading-dark.png)
 
@@ -23,15 +25,15 @@ Paste a chapter link and press play. It reads the chapter, highlights each parag
 
 Needs Windows 10 or 11 (64-bit), about 400 MB of disk space and an internet connection the first time.
 
-1. Download **Reader-Browser-0_4-win-x64.zip** from the [Releases](../../releases) page.
+1. Download **Nightingale-Reader-0_5-win-x64.zip** from the [Releases](../../releases) page.
 2. Unzip the whole folder anywhere, for example your Desktop. Keep all the files together.
-3. Double-click **Reader Browser.exe**.
+3. Double-click **Nightingale Reader.exe**.
 4. If Windows shows **"Windows protected your PC"**, click **More info**, then **Run anyway**. This appears because the app isn't code-signed yet.
 5. On first start it downloads the voice (about 90 MB). The round button at the bottom shows the progress. If the download is interrupted, it carries on where it stopped next time.
 
-To update, unzip the new version and run it. Your voice, settings and reading list are kept, because they live in your user folder (`%APPDATA%\Reader Browser`), not in the app folder.
+To update, unzip the new version and run it. Your voice, settings and reading list are kept, because they live in your user folder (`%APPDATA%\Nightingale Reader`), not in the app folder. Coming from an older build called Reader Browser? Its data is moved over automatically on first start.
 
-To uninstall, delete the app folder, and `%APPDATA%\Reader Browser` if you also want to remove the voice and your data.
+To uninstall, delete the app folder, and `%APPDATA%\Nightingale Reader` if you also want to remove the voice and your data.
 
 ## Using it
 
@@ -101,7 +103,7 @@ It only learns from results it could check: a jump that really loaded a new chap
 | Runs with | [kokoro-js](https://github.com/hexgrad/kokoro) 1.2.1 and [Transformers.js](https://github.com/huggingface/transformers.js) 3.8.1 on [ONNX Runtime](https://onnxruntime.ai) 1.21: DirectML on the graphics card, or the processor |
 | Licence | Apache 2.0 |
 
-The 8-bit model is the smallest version of Kokoro and gives the best balance of speed and quality. It's downloaded once from Hugging Face into `%APPDATA%\Reader Browser\models`. Each file is checked before use, and a damaged file is downloaded again automatically.
+The 8-bit model is the smallest version of Kokoro and gives the best balance of speed and quality. It's downloaded once from Hugging Face into `%APPDATA%\Nightingale Reader\models`. Each file is checked before use, and a damaged file is downloaded again automatically.
 
 On first start the app times a short test sentence. It uses the graphics card if that's fast enough, and otherwise adds processor threads one at a time until the voice comfortably keeps ahead of playback.
 
@@ -156,6 +158,8 @@ npm start
 | `overlay-*.html/js` | Floating player, tool rail, theme button |
 | `start.html/js` | Start page |
 | `preload-*.js` | Safe bridges between pages and the app |
+| `assets/` | Logo (SVG and PNG) and the Windows icon |
+| `tools/stamp-exe.js` | Puts the icon and name into the Windows .exe for a release build |
 
 ## Credits
 
@@ -164,4 +168,4 @@ npm start
 - [ONNX Runtime](https://onnxruntime.ai) (MIT)
 - [Electron](https://www.electronjs.org) (MIT)
 
-Made by Bray Consultants.
+Logo and app by Bray Consultants.
