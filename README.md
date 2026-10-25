@@ -140,7 +140,7 @@ Everything stays on your computer: the voice, what it learns about sites, your r
 Needs [Node.js](https://nodejs.org) 20 or newer, on Windows.
 
 ```
-git clone https://github.com/<org-name>/nightingale-reader.git
+git clone https://github.com/Bray-Consultants/nightingale-reader.git
 cd nightingale-reader
 npm install
 npm start
