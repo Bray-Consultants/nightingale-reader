@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>Reader Browser</title>
+<style>
+  :root, [data-theme="dark"] {
+    --bg: #15171f; --glow: rgba(239,230,211,.05); --card: #1e2029; --card-hi: #252834; --field: #0e0f15; --ring: rgba(255,255,255,.07);
+    --text: #efe9dc; --soft: #c3c6d1; --mist: #9a9fb0; --lamp: #efe6d3; --lamp-2: #fffaf0; --lamp-ink: #1c1d23; --amber-text: #efe6d3; --stroke: #efe6d3; --glow-c: rgba(239,230,211,.22);
+  }
+  [data-theme="light"] {
+    --bg: #f4f1ea; --glow: rgba(255,255,255,.7); --card: #ffffff; --card-hi: #fbf8f2; --field: #ffffff; --ring: rgba(30,32,44,.10);
+    --text: #23252e; --soft: #464a57; --mist: #6b6f7d; --lamp: #fffaf2; --lamp-2: #ffffff; --lamp-ink: #23252e; --amber-text: #23252e; --stroke: #3a3c46; --glow-c: rgba(30,32,44,.10);
+  }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--card-hi); border-radius: 5px; border: 2px solid var(--bg); }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+  body { background: radial-gradient(900px 420px at 50% 0, var(--glow), transparent 70%) var(--bg); }
+  main { max-width: 880px; margin: 0 auto; padding: 34px 96px 150px; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--stroke); outline-offset: 2px; }
+
+  .hero { text-align: center; }
+  .lamp { width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; display: grid; place-items: center; color: var(--lamp-ink);
+    background: radial-gradient(circle at 50% 30%, var(--lamp-2), var(--lamp) 75%); box-shadow: inset 0 0 0 1px var(--ring), 0 0 30px var(--glow-c); }
+  h1 { margin: 0 0 12px; font: 600 31px/1.2 "Segoe UI Variable Display", "Segoe UI", sans-serif; letter-spacing: -.01em; }
+  .promises { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 22px; margin: 0 0 22px; padding: 0; list-style: none; color: var(--soft); font-size: 13px; }
+  .promises li { display: inline-flex; align-items: center; gap: 7px; }
+  .promises svg { width: 15px; height: 15px; color: var(--mist); }
+
+  form.go { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 7px 0 20px; border-radius: 30px;
+    background: var(--field); box-shadow: inset 0 0 0 1px var(--ring), 0 10px 30px rgba(0,0,0,.18); max-width: 640px; margin: 0 auto; }
+  form.go:focus-within { box-shadow: inset 0 0 0 1.5px var(--stroke), 0 10px 30px rgba(0,0,0,.18); }
+  form.go svg { flex: none; width: 19px; height: 19px; color: var(--mist); }
+  form.go input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 15px; }
+  form.go input::placeholder { color: var(--mist); }
+  .primary { height: 46px; padding: 0 24px; border-radius: 23px; font-weight: 600; font-size: 15px; color: var(--lamp-ink);
+    background: radial-gradient(circle at 50% 30%, var(--lamp-2), var(--lamp) 75%); box-shadow: inset 0 0 0 1px var(--ring), 0 0 16px var(--glow-c); }
+  .primary:hover { box-shadow: inset 0 0 0 1px var(--ring), 0 0 22px var(--glow-c); }
+
+  /* favourite sites */
+  .sites { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 30px 0 0; padding: 0; list-style: none; }
+  .site { position: relative; }
+  .site > a, .site > button.add { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; padding: 16px 10px 14px;
+    border-radius: 18px; background: var(--card); box-shadow: inset 0 0 0 1px var(--ring); color: var(--text); text-decoration: none; cursor: pointer; }
+  .site > a:hover, .site > button.add:hover { background: var(--card-hi); }
+  .av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--field);
+    box-shadow: inset 0 0 0 1px var(--ring); color: var(--amber-text); font-weight: 700; font-size: 15px; }
+  .nm { font-weight: 600; font-size: 13px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; display: none; place-items: center; color: var(--mist); }
+  .x:hover { background: var(--field); color: var(--text); }
+  .site:hover .x, .x:focus-visible { display: grid; }
+  .addform { display: none; grid-column: span 2; gap: 8px; align-items: center; padding: 10px; border-radius: 18px; background: var(--card); box-shadow: inset 0 0 0 1px var(--stroke); }
+  .addform.on { display: flex; }
+  .addform input { flex: 1; min-width: 0; height: 38px; border: 0; outline: 0; border-radius: 12px; padding: 0 12px; background: var(--field); }
+  .addform button { height: 38px; padding: 0 14px; border-radius: 12px; font-weight: 600; }
+  .addform .save { background: var(--lamp); color: var(--lamp-ink); box-shadow: inset 0 0 0 1px var(--ring); }
+
+  /* reading list */
+  h2 { text-align: center; margin: 44px 0 14px; font: 600 23px/1.2 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  .filters { display: flex; justify-content: center; gap: 8px; margin-bottom: 22px; }
+  .filters button { height: 38px; padding: 0 18px; border-radius: 19px; font-weight: 600; background: var(--card); box-shadow: inset 0 0 0 1px var(--ring); }
+  .filters button:hover { background: var(--card-hi); }
+  .filters button[aria-pressed="true"] { background: radial-gradient(circle at 50% 30%, var(--lamp-2), var(--lamp) 75%); color: var(--lamp-ink); box-shadow: inset 0 0 0 1px var(--ring); }
+
+  .books { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0; list-style: none; }
+  .book { position: relative; border-radius: 20px; overflow: hidden; background: var(--card); box-shadow: inset 0 0 0 1px var(--ring); }
+  .cover { height: 132px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: flex-end; color: #fff; cursor: pointer; }
+  .cover .t { font: 600 17px/1.25 "Segoe UI Variable Display", "Segoe UI", sans-serif; text-shadow: 0 1px 8px rgba(0,0,0,.35);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .cover .h { font-size: 12px; opacity: .82; }
+  .meta { padding: 12px 16px 14px; }
+  .ch { font-size: 13px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 4px; border-radius: 2px; background: var(--field); margin: 10px 0 10px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--stroke); border-radius: 2px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tag { font-size: 12px; color: var(--mist); }
+  .tag.progress { color: var(--amber-text); }
+  .play { height: 32px; padding: 0 14px; border-radius: 16px; font-weight: 600; font-size: 13px; background: var(--field); box-shadow: inset 0 0 0 1px var(--ring); }
+  .play:hover { box-shadow: inset 0 0 0 1px var(--stroke); }
+  .book .x { top: 8px; right: 8px; color: rgba(255,255,255,.85); background: rgba(0,0,0,.25); }
+  .book:hover .x { display: grid; }
+  .empty { text-align: center; color: var(--mist); max-width: 440px; margin: 6px auto 0; }
+
+  .brain { margin: 44px auto 0; max-width: 560px; text-align: center; color: var(--mist); font-size: 12.5px; }
+  .brain button { color: var(--amber-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; padding: 0; }
+
+  [data-theme="light"] .filters button[aria-pressed="true"], [data-theme="light"] .primary { background: #2b2d36; color: #fffaf2; box-shadow: none; }
+  @media (max-width: 900px) {
+    main { padding: 28px 84px 150px; }
+    .books { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sites { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="lamp" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6.5 3.5h11v17L12 16.6l-5.5 3.9z"/></svg></div>
+    <h1>What shall we read tonight?</h1>
+    <ul class="promises">
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>Voice runs on your PC</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>Nothing sent online</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>Auto next chapter</li>
+    </ul>
+    <form class="go" id="go">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="q" type="text" spellcheck="false" autocomplete="off" placeholder="Paste a chapter link or search" aria-label="Chapter link or search">
+      <button class="primary" type="submit" title="Open the link and start reading">Read aloud</button>
+    </form>
+  </section>
+
+  <ul class="sites" id="sites" aria-label="Your sites"></ul>
+
+  <h2>Reading list</h2>
+  <div class="filters" id="filters" role="group" aria-label="Filter the reading list">
+    <button type="button" data-f="all" aria-pressed="true">All</button>
+    <button type="button" data-f="unread" aria-pressed="false">Unread</button>
+    <button type="button" data-f="progress" aria-pressed="false">In progress</button>
+    <button type="button" data-f="finished" aria-pressed="false">Finished</button>
+  </div>
+  <ul class="books" id="books"></ul>
+  <p class="empty" id="empty" hidden></p>
+
+  <p class="brain" id="brain"></p>
+</main>
+<script src="start.js"></script>
+</body>
+</html>

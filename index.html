@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<title>Reader Browser</title>
+<style>
+  :root, [data-theme="dark"] {
+    --bg: #15171f; --btn: #23252f; --btn-hi: #2e313d; --field: #0e0f15; --ring: rgba(255,255,255,.07);
+    --text: #efe9dc; --mist: #9a9fb0; --lamp: #efe6d3; --lock: #9a9fb0;
+  }
+  [data-theme="light"] {
+    --bg: #f4f1ea; --btn: #e9e4d8; --btn-hi: #dfd9cb; --field: #fcfaf6; --ring: rgba(30,32,44,.10);
+    --text: #23252e; --mist: #6b6f7d; --lamp: #3a3c46; --lock: #6b6f7d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font: 13px/1 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; user-select: none; }
+
+  #top { position: relative; height: 60px; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 14px; background: var(--bg); }
+
+  .mark { flex: none; width: 26px; display: grid; place-items: center; color: var(--lamp); margin-right: 4px; }
+
+  button { all: unset; box-sizing: border-box; cursor: pointer; flex: none; width: 40px; height: 40px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; color: var(--text);
+    background: var(--btn); box-shadow: inset 0 0 0 1px var(--ring); transition: background .12s; }
+  button:hover:not(:disabled) { background: var(--btn-hi); }
+  button:active:not(:disabled) { transform: scale(.96); }
+  button:disabled { opacity: .35; cursor: default; background: transparent; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
+  button svg { width: 18px; height: 18px; }
+
+  /* address field: shows the site in bold, becomes a plain field when you click it */
+  #addr { position: relative; flex: 1; min-width: 0; height: 42px; border-radius: 21px; margin: 0 4px;
+    background: var(--field); box-shadow: inset 0 0 0 1px var(--ring); display: flex; align-items: center; }
+  #addr:focus-within { box-shadow: inset 0 0 0 1.5px var(--lamp); }
+  #addr .ico { flex: none; width: 40px; display: grid; place-items: center; color: var(--lock); }
+  #addr .ico svg { width: 14px; height: 14px; }
+  #url { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; padding: 0 18px 0 0;
+    color: var(--text); font: 14px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; user-select: text; }
+  #url::placeholder { color: var(--mist); }
+  #view { position: absolute; left: 40px; right: 18px; top: 0; bottom: 0; display: none; align-items: center;
+    pointer-events: none; white-space: nowrap; overflow: hidden; font-size: 14px; }
+  #view b { font-weight: 600; color: var(--text); }
+  #view span { color: var(--mist); overflow: hidden; text-overflow: ellipsis; }
+  #addr.pretty #view { display: flex; }
+  #addr.pretty #url { color: transparent; }
+
+  /* page-loading line along the bottom edge */
+  #load { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; overflow: hidden; opacity: 0; transition: opacity .25s; }
+  #load.on { opacity: 1; }
+  #load::before { content: ""; position: absolute; top: 0; left: 0; height: 100%; width: 0; background: var(--lamp);
+    animation: grow 6s cubic-bezier(.1,.7,.2,1) forwards; }
+  #load:not(.on)::before { animation: none; width: 100%; }
+  @keyframes grow { to { width: 92%; } }
+
+  @media (prefers-reduced-motion: reduce) { #load::before { animation: none; width: 60%; } }
+</style>
+</head>
+<body>
+  <header id="top">
+    <div class="mark" title="Reader Browser" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3.5h12v17l-6-4.2-6 4.2z"/></svg>
+    </div>
+    <button id="back" title="Back (Alt+Left)" aria-label="Back" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6l-6 6 6 6"/></svg></button>
+    <button id="fwd" title="Forward (Alt+Right)" aria-label="Forward" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6l6 6-6 6"/></svg></button>
+    <button id="reload" title="Reload (F5)" aria-label="Reload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/></svg></button>
+    <div id="addr">
+      <span class="ico" aria-hidden="true"><svg id="ico-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><svg id="ico-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="display:none"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></span>
+      <input id="url" type="text" spellcheck="false" aria-label="Address" placeholder="Paste a chapter link or type to search">
+      <div id="view" aria-hidden="true"><b id="vhost"></b><span id="vpath"></span></div>
+    </div>
+    <button id="home" title="Start page" aria-label="Start page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></svg></button>
+    <div id="load"></div>
+  </header>
+  <script src="renderer.js"></script>
+</body>
+</html>

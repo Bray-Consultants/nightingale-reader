@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<title>Player</title>
+<style>
+  :root, [data-theme="dark"] {
+    --shell-a: #2a2c36; --shell-b: #1b1d25; --ring: rgba(255,255,255,.09); --btn: #2b2e39; --btn-hi: #363a47;
+    --orb-bg: #30323c; --track: #3d404c; --text: #efe9dc; --mist: #9a9fb0;
+    --cream: #efe6d3; --cream-2: #fffaf0; --ink: #1c1d23; --stroke: #efe6d3; --glow: rgba(239,230,211,.22); --ember: #f08a7a;
+  }
+  [data-theme="light"] {
+    --shell-a: #ffffff; --shell-b: #f3efe6; --ring: rgba(30,32,44,.12); --btn: #ece7dc; --btn-hi: #e2dccf;
+    --orb-bg: #ebe6db; --track: #dcd5c6; --text: #23252e; --mist: #6b6f7d;
+    --cream: #fffaf2; --cream-2: #ffffff; --ink: #23252e; --stroke: #3a3c46; --glow: rgba(30,32,44,.10); --ember: #c9503f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; user-select: none;
+    font: 13px/1.25 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: var(--text); }
+
+  .shell { height: 100%; width: 100%; border-radius: 42px; display: flex; align-items: center; gap: 8px;
+    padding: 0 14px 0 12px; background: linear-gradient(180deg, var(--shell-a), var(--shell-b)); box-shadow: inset 0 0 0 1px var(--ring); }
+
+  button { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center;
+    justify-content: center; color: var(--text); border-radius: 50%; flex: none; }
+  button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--stroke); outline-offset: 2px; }
+
+  /* main round button with a progress ring */
+  #orb { position: relative; width: 60px; height: 60px; border-radius: 50%; background: var(--orb-bg); }
+  #orb .ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+  #orb .ring circle { fill: none; stroke-width: 3.5; }
+  #orb .track { stroke: var(--track); }
+  #orb .fill { stroke: var(--stroke); stroke-linecap: round; transition: stroke-dashoffset .3s linear; }
+  #orb .disc { position: absolute; inset: 10px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, var(--cream-2), var(--cream) 75%);
+    box-shadow: inset 0 0 0 1px var(--ring), 0 0 14px var(--glow); transition: transform .12s, box-shadow .2s; }
+  #orb:hover .disc { box-shadow: inset 0 0 0 1px var(--ring), 0 0 20px var(--glow); }
+  #orb:active .disc { transform: scale(.95); }
+  #orb .glyph { position: relative; color: var(--ink); display: grid; place-items: center; }
+  #orb svg.g { width: 18px; height: 18px; display: none; }
+  #orb .pct { display: none; position: relative; font: 600 12.5px "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--text); font-variant-numeric: tabular-nums; }
+  body[data-orb="play"] #g-play, body[data-orb="pause"] #g-pause, body[data-orb="retry"] #g-retry { display: block; }
+  body[data-orb="wait"] #orb .disc { background: var(--orb-bg); box-shadow: none; }
+  body[data-orb="wait"] #orb .pct { display: block; }
+  body[data-orb="retry"] #orb .fill { stroke: transparent; }
+
+  .mid { flex: 1; min-width: 0; padding: 0 6px 0 4px; }
+  .row1 { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  #title { flex: 1; min-width: 0; font: 600 15.5px/1.25 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #note { flex: none; max-width: 46%; font-size: 12px; color: var(--mist); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status { margin-top: 5px; font-size: 12.5px; color: var(--mist); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.err #status { color: var(--ember); }
+
+  /* seek bar: elapsed, bar, remaining */
+  .seek { display: none; align-items: center; gap: 9px; margin-top: 7px; }
+  body.seekable .seek { display: flex; }
+  body.seekable #status { display: none; }
+  .time { flex: none; min-width: 34px; font-size: 11.5px; color: var(--mist); font-variant-numeric: tabular-nums; }
+  .time.r { text-align: right; }
+  #bar { position: relative; flex: 1; height: 16px; cursor: pointer; touch-action: none; }
+  #bar .tr { position: absolute; left: 0; right: 0; top: 6px; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+  #bar .fl { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--stroke); border-radius: 2px; }
+  #bar .th { position: absolute; top: 2px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--cream-2);
+    box-shadow: 0 0 0 1px var(--ring), 0 1px 4px rgba(0,0,0,.35); opacity: 0; transition: opacity .12s; left: 0; }
+  #bar:hover .th, #bar.drag .th, #bar:focus-visible .th { opacity: 1; }
+  #bar:hover .tr, #bar.drag .tr { height: 5px; top: 5.5px; }
+  #tip { position: absolute; bottom: 18px; transform: translateX(-50%); padding: 2px 7px; border-radius: 6px; font-size: 11px;
+    background: var(--btn-hi); color: var(--text); display: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #bar.drag #tip, #bar:hover #tip { display: block; }
+
+  .tool { width: 36px; height: 36px; background: var(--btn); box-shadow: inset 0 0 0 1px var(--ring); color: var(--text); }
+  .tool:hover:not(:disabled) { background: var(--btn-hi); }
+  .tool:disabled { opacity: .38; cursor: default; }
+  .tool svg { width: 17px; height: 17px; }
+  #retry { display: none; width: 36px; height: 36px; background: transparent; color: var(--text); box-shadow: inset 0 0 0 1.5px var(--stroke); }
+  #retry:hover { background: var(--btn); }
+  body.err #retry { display: inline-flex; }
+
+  /* folded: just the main button and an unfold handle */
+  body.folded .mid, body.folded #stop, body.folded #retry, body.folded #pback, body.folded #pnext { display: none; }
+  body.folded .shell { justify-content: center; gap: 12px; padding: 0 12px 0 12px; }
+  #fold svg { transition: transform .2s; }
+  body.folded #fold svg { transform: rotate(180deg); }
+
+  @media (max-width: 420px) { #pback, #pnext { display: none; } #note { display: none; } }
+  @media (prefers-reduced-motion: reduce) { #orb .fill, #orb .disc, #fold svg, #bar .th { transition: none; } }
+</style>
+</head>
+<body data-orb="wait">
+  <div class="shell">
+    <button id="orb" title="Read (F9)" aria-label="Read">
+      <svg class="ring" viewBox="0 0 60 60" aria-hidden="true"><circle class="track" cx="30" cy="30" r="27.5"/><circle class="fill" id="fill" cx="30" cy="30" r="27.5"/></svg>
+      <span class="disc"></span>
+      <span class="glyph" aria-hidden="true">
+        <svg class="g" id="g-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 5.8v12.4a.8.8 0 0 0 1.2.7l9.6-6.2a.8.8 0 0 0 0-1.4L9.7 5.1a.8.8 0 0 0-1.2.7z"/></svg>
+        <svg class="g" id="g-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5.5" width="3.6" height="13" rx="1.2"/><rect x="13.4" y="5.5" width="3.6" height="13" rx="1.2"/></svg>
+        <svg class="g" id="g-retry" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 5v4h4"/></svg>
+        <span class="pct" id="orbPct"></span>
+      </span>
+    </button>
+    <div class="mid">
+      <div class="row1"><div id="title">Loading voice…</div><span id="note"></span></div>
+      <div id="status"></div>
+      <div class="seek">
+        <span class="time" id="tPos">0:00</span>
+        <div id="bar" role="slider" tabindex="0" aria-label="Position in chapter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="tr"><div class="fl" id="barFill"></div></div><div class="th" id="barThumb"></div><div id="tip"></div>
+        </div>
+        <span class="time r" id="tLeft">-0:00</span>
+      </div>
+    </div>
+    <button id="retry" title="Try loading the voice again" aria-label="Retry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12a7 7 0 1 0 2.1-5"/><path d="M5 5v4h4"/></svg></button>
+    <button id="pback" class="tool" title="Back a paragraph (Alt+Up)" aria-label="Back a paragraph" disabled><svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="6" width="2.4" height="12" rx="1"/><path d="M19 6.8v10.4a.8.8 0 0 1-1.2.7L10 12.7a.8.8 0 0 1 0-1.4l7.8-5.2a.8.8 0 0 1 1.2.7z"/></svg></button>
+    <button id="pnext" class="tool" title="Skip a paragraph (Alt+Down)" aria-label="Skip a paragraph" disabled><svg viewBox="0 0 24 24" fill="currentColor"><rect x="16.6" y="6" width="2.4" height="12" rx="1"/><path d="M5 6.8v10.4a.8.8 0 0 0 1.2.7l7.8-5.2a.8.8 0 0 0 0-1.4L6.2 6.1A.8.8 0 0 0 5 6.8z"/></svg></button>
+    <button id="stop" class="tool" title="Stop (F7)" aria-label="Stop" disabled><svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button>
+    <button id="fold" class="tool" title="Fold the player" aria-label="Fold the player"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5l6 6 6-6"/></svg></button>
+  </div>
+  <script src="overlay-dock.js"></script>
+</body>
+</html>

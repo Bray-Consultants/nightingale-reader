@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'">
+<title>Tools</title>
+<style>
+  :root, [data-theme="dark"] {
+    --shell-a: #2a2c36; --shell-b: #1b1d25; --ring: rgba(255,255,255,.09); --card: #2c2f3a; --card-hi: #343845;
+    --key: #15161c; --text: #efe9dc; --mist: #9a9fb0; --lamp: #efe6d3; --lamp-2: #fffaf0; --lamp-ink: #1c1d23; --divider: rgba(255,255,255,.1);
+    --track: #3b3e4a; --amber-text: #efe6d3; --stroke: #efe6d3; --glow: rgba(239,230,211,.22);
+  }
+  [data-theme="light"] {
+    --shell-a: #ffffff; --shell-b: #f3efe6; --ring: rgba(30,32,44,.12); --card: #f1ece2; --card-hi: #e8e2d5;
+    --key: #ebe5d8; --text: #23252e; --mist: #6b6f7d; --lamp: #fffaf2; --lamp-2: #ffffff; --lamp-ink: #23252e; --divider: rgba(30,32,44,.12);
+    --track: #ddd6c6; --amber-text: #23252e; --stroke: #3a3c46; --glow: rgba(30,32,44,.10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; user-select: none;
+    font: 13px/1.35 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: var(--text); }
+
+  .shell { height: 100%; width: 100%; display: flex; align-items: stretch; border-radius: 30px;
+    background: linear-gradient(180deg, var(--shell-a), var(--shell-b)); box-shadow: inset 0 0 0 1px var(--ring); overflow: hidden; }
+  body.open .shell { border-radius: 26px; }
+
+  button { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+  button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--stroke); outline-offset: 2px; }
+
+  /* the rail itself */
+  nav { flex: none; width: 60px; padding: 16px 8px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  body.open nav { box-shadow: inset 1px 0 0 var(--divider); }
+  nav button { position: relative; width: 44px; height: 44px; border-radius: 50%; color: var(--text); }
+  nav button:hover { background: var(--card); }
+  nav button svg { width: 20px; height: 20px; }
+  nav button[aria-expanded="true"] { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--stroke); color: var(--amber-text); }
+  #b-speed { font: 600 12.5px "Segoe UI Variable Text", "Segoe UI", sans-serif; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  /* auto next chapter: a lit lamp when on */
+  #b-auto { width: 46px; height: 46px; color: var(--mist); box-shadow: inset 0 0 0 1.5px var(--divider); }
+  #b-auto[aria-pressed="true"] { background: radial-gradient(circle at 50% 35%, var(--lamp-2), var(--lamp) 70%); color: var(--lamp-ink);
+    box-shadow: inset 0 0 0 1px var(--divider), 0 0 14px var(--glow); }
+  #b-auto[aria-pressed="true"]:hover { box-shadow: inset 0 0 0 1px var(--divider), 0 0 20px var(--glow); }
+  #b-save[aria-pressed="true"] { color: var(--amber-text); }
+  #b-save[aria-pressed="true"] .plus { display: none; }
+  #b-save[aria-pressed="true"] .shape { fill: currentColor; }
+  #b-save:disabled { opacity: .35; cursor: default; background: transparent; }
+  nav hr { width: 28px; border: 0; height: 1px; background: var(--divider); margin: 4px 0; }
+
+  /* the drawer that slides out to the left */
+  .panel { display: none; flex: none; width: 290px; padding: 22px 20px 20px 22px; flex-direction: column; }
+  body.open .panel { display: flex; animation: in .16s ease-out; }
+  @keyframes in { from { opacity: 0; transform: translateX(8px); } }
+  .panel h2 { margin: 0 0 16px; font: 600 21px/1.2 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  .panel .hint { margin: auto 0 0; padding-top: 16px; color: var(--mist); font-size: 12.5px; }
+  .pane { display: none; flex: 1; flex-direction: column; }
+  body[data-pane="voice"] #p-voice, body[data-pane="speed"] #p-speed, body[data-pane="keys"] #p-keys { display: flex; }
+
+  .voice { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 14px; margin-bottom: 10px;
+    background: var(--card); box-shadow: inset 0 0 0 1px var(--ring); cursor: pointer; }
+  .voice:hover { background: var(--card-hi); }
+  .voice[aria-checked="true"] { box-shadow: inset 0 0 0 1.5px var(--stroke); }
+  .voice .txt { flex: 1; min-width: 0; }
+  .voice .nm { display: block; font: 600 15px/1.3 "Segoe UI Variable Display", "Segoe UI", sans-serif; }
+  .voice .ds { display: block; color: var(--mist); font-size: 12.5px; }
+  .try { flex: none; height: 30px; padding: 0 13px; border-radius: 15px; font-size: 12.5px; font-weight: 600;
+    color: var(--text); box-shadow: inset 0 0 0 1px var(--ring); background: rgba(127,127,127,.06); }
+  .try:hover { box-shadow: inset 0 0 0 1px var(--stroke); color: var(--amber-text); }
+
+  .readout { font: 300 46px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif; color: var(--text); margin: 0 0 22px; font-variant-numeric: tabular-nums; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; margin: 0; background: transparent; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--stroke) var(--fill, 28%), var(--track) var(--fill, 28%)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; margin-top: -7px;
+    background: var(--lamp-2); box-shadow: 0 0 0 1px var(--divider), 0 1px 4px rgba(0,0,0,.35); }
+  .ends { display: flex; justify-content: space-between; color: var(--mist); font-size: 12px; margin: 6px 0 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips button { height: 32px; padding: 0 13px; border-radius: 16px; font-size: 13px; font-weight: 600;
+    font-variant-numeric: tabular-nums; box-shadow: inset 0 0 0 1px var(--ring); }
+  .chips button:hover { background: var(--card); }
+  .chips button[aria-pressed="true"] { background: radial-gradient(circle at 50% 30%, var(--lamp-2), var(--lamp) 75%); color: var(--lamp-ink); box-shadow: inset 0 0 0 1px var(--divider); }
+
+  .keys { display: grid; grid-template-columns: 84px 1fr; gap: 10px 12px; align-items: center; margin: 0; }
+  .keys dd { margin: 0; }
+  kbd { display: block; text-align: center; padding: 6px 4px; border-radius: 8px; background: var(--key); box-shadow: inset 0 0 0 1px var(--ring);
+    font: 700 12px "Segoe UI", sans-serif; color: var(--amber-text); white-space: nowrap; }
+
+  /* light theme: selected things in dark ink so they read clearly */
+  [data-theme="light"] .chips button[aria-pressed="true"],
+  [data-theme="light"] #b-auto[aria-pressed="true"] { background: #2b2d36; color: #fffaf2; box-shadow: none; }
+  @media (prefers-reduced-motion: reduce) { body.open .panel { animation: none; } }
+</style>
+</head>
+<body data-pane="">
+  <div class="shell">
+    <section class="panel" id="panel">
+      <div class="pane" id="p-voice">
+        <h2>Voice</h2>
+        <div role="radiogroup" aria-label="Voice" id="voices"></div>
+        <p class="hint" id="where">Runs on your computer. Nothing is sent online.</p>
+      </div>
+      <div class="pane" id="p-speed">
+        <h2>Speed</h2>
+        <div class="readout" id="readout">1×</div>
+        <input id="speed" type="range" min="0.8" max="1.5" step="0.05" value="1" aria-label="Reading speed">
+        <div class="ends"><span>0.8×</span><span>1.5×</span></div>
+        <div class="chips" id="chips"></div>
+        <p class="hint">Changes apply straight away.</p>
+      </div>
+      <div class="pane" id="p-keys">
+        <h2>Shortcuts</h2>
+        <dl class="keys">
+          <dt><kbd>F9</kbd></dt><dd>Read selection or page</dd>
+          <dt><kbd>F8</kbd></dt><dd>Pause / resume</dd>
+          <dt><kbd>F7</kbd></dt><dd>Stop</dd>
+          <dt><kbd>Alt+↑ ↓</kbd></dt><dd>Back / skip a paragraph</dd>
+          <dt><kbd>F10</kbd></dt><dd>Skip to next chapter</dd>
+          <dt><kbd>Ctrl+L</kbd></dt><dd>Address bar</dd>
+          <dt><kbd>F5</kbd></dt><dd>Reload</dd>
+          <dt><kbd>Alt+← →</kbd></dt><dd>Back / forward</dd>
+        </dl>
+        <p class="hint">Tip: right-click a paragraph and choose “Read aloud from here”.</p>
+      </div>
+    </section>
+
+    <nav id="rail" aria-label="Reading tools">
+      <button id="b-voice" data-pane="voice" aria-expanded="false" title="Voice" aria-label="Voice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10.5v3M8 8v8M12 5v14M16 8v8M20 10.5v3"/></svg>
+      </button>
+      <button id="b-speed" data-pane="speed" aria-expanded="false" title="Reading speed" aria-label="Reading speed">1×</button>
+      <button id="b-auto" aria-pressed="true" title="Auto next chapter: on" aria-label="Auto next chapter">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 6.5v11l8-5.5z"/><path d="M17.5 6.5v11"/></svg>
+      </button>
+      <hr>
+      <button id="b-page" title="Read the page from the top" aria-label="Read the page from the top">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5h12"/><path d="M12 20V9"/><path d="M7.5 13.5L12 9l4.5 4.5"/></svg>
+      </button>
+      <button id="b-save" aria-pressed="false" title="Save this novel to your reading list" aria-label="Save to reading list">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="shape" d="M6.5 3.5h11v17L12 16.6l-5.5 3.9z"/><path class="plus" d="M12 7.5v5M9.5 10h5"/></svg>
+      </button>
+      <button id="b-keys" data-pane="keys" aria-expanded="false" title="Shortcuts" aria-label="Shortcuts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/></svg>
+      </button>
+    </nav>
+  </div>
+  <script src="overlay-rail.js"></script>
+</body>
+</html>
