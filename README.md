@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo-512.png" width="128" height="128" alt="Nightingale Reader logo: a cream white nightingale singing under a crescent moon"></p>
+<p align="center"><img src="assets/logo-512.png" width="128" height="128" alt="Nightingale Reader logo: a white nightingale singing under a crescent moon"></p>
 
 <h1 align="center">Nightingale Reader</h1>
 
@@ -158,7 +158,7 @@ npm start
 | `overlay-*.html/js` | Floating player, tool rail, theme button |
 | `start.html/js` | Start page |
 | `preload-*.js` | Safe bridges between pages and the app |
-| `assets/` | Logo (SVG and PNG) and the Windows icon |
+| `assets/` | App icon (PNG and .ico) and the white and black bird logos for the dark and light themes |
 | `tools/stamp-exe.js` | Puts the icon and name into the Windows .exe for a release build |
 
 ## Credits
@@ -168,4 +168,4 @@ npm start
 - [ONNX Runtime](https://onnxruntime.ai) (MIT)
 - [Electron](https://www.electronjs.org) (MIT)
 
-Logo and app by Bray Consultants.
+Made by Bray Consultants.
