@@ -9,7 +9,7 @@ const { EXTRACT_FN, HL_FN, NEXT_CANDS_FN, CLICK_FN, LINK_NEXT_FN } = require('./
 const TOP_H = 60;
 const EDGE = 18;                       // gap between floating panels and the window edge
 const MODE_D = 50;                     // round theme button, bottom-left
-const IDLE_SLEEP_MS = 4 * 60 * 1000;   // voice engine sleeps after 4 idle minutes (frees its memory)
+const IDLE_SLEEP_MS = 3 * 60 * 1000;   // voice engine sleeps after 3 idle minutes (frees its memory)
 const CACHE_MAX = 48 * 1024 * 1024;    // browser cache cap
 // 0.5: the app is now called Nightingale Reader. Carry the voice, settings and reading list over
 // from the old "Reader Browser" folder so nothing has to be downloaded or set up again.
@@ -36,6 +36,8 @@ const HOME = 'file://' + path.join(__dirname, 'start.html').replace(/\\/g, '/');
 app.commandLine.appendSwitch('disable-features', [
   'CalculateNativeWinOcclusion', 'Translate', 'MediaRouter', 'OptimizationHints',
   'SpareRendererForSitePerProcess', 'BackForwardCache', 'Prerender2', 'InterestFeedContentSuggestions',
+  // 0.6: sound plays from the app itself instead of a separate audio process (~40-60 MB less while reading)
+  'AudioServiceOutOfProcess',
 ].join(','));
 // All of the app's own panels (top bar, player, rail, theme button, start page) share ONE process
 // instead of one each (saves ~200 MB).
@@ -66,6 +68,10 @@ const fileProgress = {};
 let engine = { state: 'loading', pct: 0, msg: '', info: null };
 let workerStage = '';
 let nextToken = 0;      // only the newest next-chapter jump may act
+// Who changed the page? The reader itself (next chapter, playlist, start page) or you, by clicking
+// a link. When you click to another chapter while it reads, the reader follows you there.
+let appNav = 0, appNavOnce = false, userLoadPending = false;
+let plActive = false;   // the playlist is playing
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const alive = (wc) => wc && !wc.isDestroyed();
@@ -117,7 +123,8 @@ function startWorker(wake) {
       if (w) { waiting.delete(m.id); w.resolve({ audio: m.audio, sr: m.sr }); }
     } else if (m.type === 'error') {
       const w = waiting.get(m.id);
-      if (w) { waiting.delete(m.id); w.reject(new Error(m.message)); }
+      // a request from a stopped reading ends quietly; real failures are errors
+      if (w) { waiting.delete(m.id); if (m.message === 'cancelled') w.resolve({ cancelled: true }); else w.reject(new Error(m.message)); }
     }
   });
 
@@ -275,7 +282,16 @@ function createWindow() {
   };
   ['did-start-loading', 'did-stop-loading', 'did-navigate', 'did-navigate-in-page', 'page-title-updated']
     .forEach((ev) => wc.on(ev, pushNav));
-  wc.on('did-finish-load', () => { if (isHome(wc.getURL())) { sendStartData(); wc.send('rb:theme', lib.d.prefs.theme); } });
+  wc.on('did-finish-load', () => {
+    if (isHome(wc.getURL())) { sendStartData(); wc.send('rb:theme', lib.d.prefs.theme); }
+    if (userLoadPending) { userLoadPending = false; toUI('page:user-loaded', { url: wc.getURL() }); }
+  });
+  wc.on('did-navigate', (_e, url) => {
+    if (appNav > 0 || appNavOnce) { appNavOnce = false; userLoadPending = false; return; }
+    if (isHome(url)) return;
+    userLoadPending = true;
+    toUI('page:user-nav', { url });
+  });
 
   wc.on('context-menu', (_e, p) => {
     const items = [];
@@ -313,6 +329,7 @@ ipcMain.handle('tts:extract', async (_e, pt) => {
     let ex = await extractNow(pt);
     if (!ex.paras.length) { await sleep(900); ex = await extractNow(pt); }
     ex.resumeAt = pt ? 0 : brain.getPos(ex.url);
+    ex.isIndex = looksLikeIndex(ex, null);
     return ex;
   } catch (_) { return EMPTY; }
 });
@@ -324,8 +341,31 @@ ipcMain.on('tts:highlight', (_e, d) => {
   run(`(${HL_FN})(${i})`).catch(() => {});
 });
 
+// A novel's own page (synopsis + chapter list) is not a chapter. Sites often send "Next" on the
+// newest chapter back to it, and before 0.6 that page was read out as if it were the next chapter.
+const NAMED = /(?:chapter|chap|ch\.?|episode|ep\.?|part)\s*[-_#.:]?\s*(\d+)/i;
+const pathOf = (u) => { try { return decodeURIComponent(new URL(u).pathname); } catch (_) { return ''; } };
+const chapterNo = (title, url) => {
+  const m = NAMED.exec(title || '') || NAMED.exec(pathOf(url).split('/').pop() || '');
+  return m ? Number(m[1]) : null;
+};
+function looksLikeIndex(ex, fromUrl) {
+  if (!ex || !ex.paras) return false;
+  const chars = ex.paras.reduce((n, p) => n + p.length, 0);
+  const numbered = chapterNo(ex.title, ex.url) != null || NAMED.test(ex.docTitle || '');
+  if (fromUrl && hostOf(fromUrl) === hostOf(ex.url)) {
+    const a = pathOf(ex.url).replace(/\/+$/, ''), b = pathOf(fromUrl).replace(/\/+$/, '');
+    if (a && b.startsWith(a + '/')) return true;            // one level up from the chapter: the novel's page
+    if (!a) return !numbered;                                 // the site's home page
+  }
+  const links = ex.chapLinks || 0;
+  if (!numbered && links >= 3 && chars < 3000) return true;
+  if (links >= 25 && chars < 5000) return true;
+  return false;
+}
+
 // Waits until a new chapter (different from prevSig) has appeared on the page.
-async function waitChapter(prevSig, fromUrl, ms, token) {
+async function waitChapter(prevSig, fromUrl, ms, token, fromTitle) {
   const wc = view.webContents;
   const t0 = Date.now();
   await sleep(600);
@@ -336,9 +376,14 @@ async function waitChapter(prevSig, fromUrl, ms, token) {
         const ex = await extractNow(null, false);
         const chars = ex.paras.reduce((n, p) => n + p.length, 0);
         if (ex.paras.length && ex.sig !== prevSig) {
-          // very short pages are usually the novel's index or an error page, not a chapter
-          if (chars >= 300) { brain.learnPage(ex.host, ex); return { ok: true, ex }; }
-          return { ok: false, reason: 'not-a-chapter' };
+          // very short pages are usually an error page, not a chapter
+          if (chars < 300) return { ok: false, reason: 'not-a-chapter' };
+          if (looksLikeIndex(ex, fromUrl)) return { ok: false, reason: 'index' };
+          // landed on an earlier chapter (e.g. a "first chapter" link): not the next one
+          const was = chapterNo(fromTitle, fromUrl), now = chapterNo(ex.title, ex.url);
+          if (was != null && now != null && now < was) return { ok: false, reason: 'not-a-chapter' };
+          brain.learnPage(ex.host, ex);
+          return { ok: true, ex };
         }
       } catch (_) {}
     }
@@ -364,10 +409,15 @@ async function backTo(url) {
 // Click "next chapter", or follow rel=next, or count the chapter number up. Learns from the result.
 ipcMain.on('tts:next-cancel', () => { nextToken++; });
 ipcMain.handle('tts:next', async (_e, arg) => {
+  appNav++;
+  try { return await nextChapter(arg); } finally { setTimeout(() => { appNav--; }, 300); }
+});
+async function nextChapter(arg) {
   const token = ++nextToken;
   const gone = () => token !== nextToken;
   const wc = view.webContents;
   const prevSig = arg && typeof arg === 'object' ? arg.sig : arg;
+  const fromTitle = arg && arg.fromTitle ? String(arg.fromTitle) : '';
   // The page must show the chapter we are coming from (you may have clicked elsewhere meanwhile)
   if (arg && arg.fromUrl && Brain.key(wc.getURL()) !== Brain.key(arg.fromUrl)) {
     await backTo(arg.fromUrl);
@@ -389,9 +439,10 @@ ipcMain.handle('tts:next', async (_e, arg) => {
     toUI('next:info', { label: labelFor(best.href, best.text) });
     tried.add(best.href || '#btn');
     try { await run(`(${CLICK_FN})(${best.i})`); } catch (_) { /* page navigated while returning: fine */ }
-    const r = await waitChapter(prevSig, fromUrl, 12000, token);
+    const r = await waitChapter(prevSig, fromUrl, 12000, token, fromTitle);
     if (r.reason === 'cancelled') return r;
-    brain.learnNext(host, best, ranked, r.ok);
+    // "Next" leading to the novel's page just means there is no newer chapter yet: the button was right
+    if (r.reason !== 'index') brain.learnNext(host, best, ranked, r.ok);
     if (r.ok) return r;
     lastReason = r.reason;
     await backTo(fromUrl);
@@ -405,7 +456,7 @@ ipcMain.handle('tts:next', async (_e, arg) => {
     tried.add(relHref);
     toUI('next:info', { label: labelFor(relHref, '') });
     wc.loadURL(relHref).catch(() => {});
-    const r = await waitChapter(prevSig, fromUrl, 12000, token);
+    const r = await waitChapter(prevSig, fromUrl, 12000, token, fromTitle);
     if (r.ok) return r;
     lastReason = r.reason;
     await backTo(fromUrl);
@@ -417,15 +468,15 @@ ipcMain.handle('tts:next', async (_e, arg) => {
   if (guess && !tried.has(guess) && brain.urlGuessAllowed(host)) {
     toUI('next:info', { label: labelFor(guess, '') });
     wc.loadURL(guess).catch(() => {});
-    const r = await waitChapter(prevSig, fromUrl, 12000, token);
+    const r = await waitChapter(prevSig, fromUrl, 12000, token, fromTitle);
     if (r.reason === 'cancelled') return r;
     brain.learnUrl(host, r.ok);
     if (r.ok) return r;
     lastReason = r.reason;
     await backTo(fromUrl);
   }
-  return { ok: false, reason: lastReason };
-});
+  return { ok: false, reason: lastReason === 'index' ? 'no-button' : lastReason };
+}
 
 /* ------------------------------------------------------------------ */
 /*  IPC                                                                */
@@ -467,9 +518,12 @@ ipcMain.on('pos:save', (_e, { url, i }) => { if (url) brain.setPos(url, Number(i
 ipcMain.on('lib:progress', (_e, { url, title, prog, finished }) => {
   if (url && lib.progress(url, title, prog, finished)) { pushNav(); sendStartData(); }
 });
+ipcMain.on('lib:track', (_e, { url, title, pageTitle }) => {
+  if (url && lib.track(String(url), String(title || ''), String(pageTitle || ''))) pushNav();
+});
 ipcMain.on('lib:toggle', (_e, title) => {
   const u = view.webContents.getURL();
-  lib.toggle(u, title || view.webContents.getTitle());
+  lib.toggle(u, title || view.webContents.getTitle(), view.webContents.getTitle());
   pushNav();
 });
 
@@ -480,6 +534,14 @@ ipcMain.on('ov:act', (_e, a) => {
   if (!a || typeof a.act !== 'string') return;
   if (a.act === 'focus-page') { view.webContents.focus(); return; }
   if (a.act === 'theme') { lib.setPref('theme', lib.d.prefs.theme === 'light' ? 'dark' : 'light'); sendTheme(); return; }
+  if (a.act === 'pl-add-page') {
+    const u = view.webContents.getURL();
+    // the chapter's own title; a page title loses its "| Site name" tail
+    const title = (lastUIState && lastUIState.running && lastUIState.title) || view.webContents.getTitle().replace(/\s+[|–—]\s+[^|–—]+$/, '');
+    const n = lib.plAdd(u, title);
+    if (n) toUI('cmd', { type: 'note', text: `Added to playlist (${n} in the list)` });
+    return;
+  }
   toUI('cmd', { type: 'remote', act: a.act, val: a.val });
 });
 ipcMain.on('ov:size', (e, s) => {
@@ -499,21 +561,62 @@ ipcMain.handle('ui:theme', () => (lib.d.prefs.theme === 'light' ? 'light' : 'dar
 /* Start page (only the built-in start page may use these) */
 const fromStart = (e) => view && e.sender === view.webContents && isHome(e.senderFrame ? e.senderFrame.url : view.webContents.getURL());
 function startData() {
-  return { ...lib.snapshot(), theme: lib.d.prefs.theme, brain: brain.stats() };
+  return { ...lib.snapshot(), theme: lib.d.prefs.theme, brain: brain.stats(), pl: plState() };
 }
 function sendStartData() {
   if (view && alive(view.webContents) && isHome(view.webContents.getURL())) view.webContents.send('rb:data', startData());
 }
 ipcMain.handle('start:data', (e) => (fromStart(e) ? startData() : null));
-ipcMain.on('start:go', (e, { url, read }) => {
+// Opens a link and then reads it (or jumps on to its next chapter)
+function openAndRead(u, cmd) {
+  const wc = view.webContents;
+  appNavOnce = true;
+  if (cmd) wc.once('did-finish-load', () => setTimeout(() => toUI('cmd', cmd), 700));
+  wc.loadURL(u).catch(() => {});
+}
+ipcMain.on('start:go', (e, { url, read, next }) => {
   if (!fromStart(e)) return;
   const u = normalize(url);
   if (!u) return;
-  const wc = view.webContents;
-  if (read) {
-    wc.once('did-finish-load', () => setTimeout(() => toUI('cmd', { type: 'read' }), 700));
-  }
-  wc.loadURL(u).catch(() => {});
+  plStop();
+  openAndRead(u, !read ? null : next ? { type: 'remote', act: 'next-chapter' } : { type: 'read', auto: true });
+});
+
+/* Playlist: the start page edits it, the reader plays it */
+function plState() { return { items: lib.d.pl.items, at: lib.d.pl.at, active: plActive }; }
+function plPlay(i) {
+  const it = lib.d.pl.items[i];
+  if (!it) return false;
+  lib.d.pl.at = i; plActive = true; lib.save();
+  openAndRead(it.url, { type: 'read', auto: true, playlist: { at: i, n: lib.d.pl.items.length } });
+  sendStartData();
+  return true;
+}
+function plStop() { if (plActive) { plActive = false; sendStartData(); } }
+ipcMain.handle('pl:next', () => {
+  const pl = lib.d.pl;
+  if (pl.items[pl.at]) pl.items[pl.at].done = true;
+  lib.save();
+  if (plActive && pl.at + 1 < pl.items.length) return plPlay(pl.at + 1);
+  plStop();
+  return false;
+});
+ipcMain.on('pl:stop', () => plStop());
+ipcMain.on('pl:title', (_e, { url, title }) => {
+  const it = lib.d.pl.items[lib.d.pl.at];
+  if (plActive && it && title) { it.title = String(title).slice(0, 140); lib.save(); }
+});
+const plFromStart = (name, fn) => ipcMain.on('start:' + name, (e, d) => { if (fromStart(e)) { fn(d || {}); sendStartData(); } });
+plFromStart('pl-add', (d) => { const u = normalize(String(d.url || '')); if (u && !/google\.com\/search/.test(u)) lib.plAdd(u, String(d.title || '')); });
+plFromStart('pl-remove', (d) => { const i = lib.plRemove(String(d.id || '')); if (i >= 0 && i === lib.d.pl.at) plActive = false; });
+plFromStart('pl-up', (d) => lib.plUp(String(d.id || '')));
+plFromStart('pl-clear', (d) => { plActive = false; lib.plClear(!!d.done); });
+ipcMain.on('start:pl-play', (e, d) => {
+  if (!fromStart(e)) return;
+  const items = lib.d.pl.items;
+  let i = d && d.id ? items.findIndex((x) => x.id === d.id) : items.findIndex((x) => !x.done);
+  if (i < 0) { i = 0; items.forEach((x) => { x.done = false; }); }
+  plPlay(i);
 });
 ipcMain.on('start:add-site', (e, { url, name }) => { if (fromStart(e)) { lib.addSite(String(url || ''), String(name || '')); sendStartData(); } });
 ipcMain.on('start:remove-site', (e, host) => { if (fromStart(e)) { lib.removeSite(String(host)); sendStartData(); } });

@@ -107,6 +107,15 @@ const EXTRACT_FN = function (pt, hints) {
 
   window.__ttsEls = els;
   window.__ttsBox = c;
+  // How many links on the page point at chapters. A novel's index page is mostly a chapter list;
+  // a chapter page has a few at most (prev / next / a "latest chapters" box).
+  let chapLinks = 0;
+  const CHAP = /(?:chapter|chap|ch\.?|episode|ep\.?)\s*[-_#.:]?\s*\d+/i;
+  const links = document.getElementsByTagName('a');
+  for (let i = 0; i < links.length && i < 3000; i++) {
+    const a = links[i];
+    if (CHAP.test(a.textContent || '') || CHAP.test(a.getAttribute('href') || '')) chapLinks++;
+  }
   // fingerprint of this chapter: its address plus a hash of all its text
   // (sites often start and end every chapter with the same lines, so first/last lines are not enough)
   let hsh = 5381;
@@ -118,7 +127,7 @@ const EXTRACT_FN = function (pt, hints) {
   const edgeSet = edges.length > 6 ? edges.slice(0, 2).concat(edges.slice(-3)) : [];
   return {
     title, paras: texts, sig, startIndex, url: location.href, host: location.hostname,
-    csel: selOf(c), usedLearned, edges: edgeSet, docTitle: document.title.slice(0, 160),
+    csel: selOf(c), usedLearned, edges: edgeSet, docTitle: document.title.slice(0, 160), chapLinks,
   };
 };
 

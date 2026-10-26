@@ -25,7 +25,7 @@ Paste a chapter link and press play. It reads the chapter, highlights each parag
 
 Needs Windows 10 or 11 (64-bit), about 400 MB of disk space and an internet connection the first time.
 
-1. Download **Nightingale-Reader-0_5-win-x64.zip** from the [Releases](../../releases) page.
+1. Download **Nightingale-Reader-0_6-win-x64.zip** from the [Releases](../../releases) page.
 2. Unzip the whole folder anywhere, for example your Desktop. Keep all the files together.
 3. Double-click **Nightingale Reader.exe**.
 4. If Windows shows **"Windows protected your PC"**, click **More info**, then **Run anyway**. This appears because the app isn't code-signed yet.
@@ -47,6 +47,8 @@ To uninstall, delete the app folder, and `%APPDATA%\Nightingale Reader` if you a
 ### Reading
 - **Hands-free chapters.** Finds the chapter text on most novel and article sites, reads it, clicks Next and carries on.
 - **Never stuck on Next.** If a site has no Next button, it follows the chapter numbers in the address (`…/chapter-41` → `…/chapter-42`). At the real end of a novel it tells you you're caught up.
+- **Knows a novel's index from a chapter.** On many sites, Next on the newest chapter leads back to the novel's page. The reader recognises that page and stops on your last chapter instead of reading out the chapter list.
+- **Follows you.** Click to another chapter while it reads and it starts reading that one. Open a novel's index with **Read aloud** and it waits for you to pick a chapter.
 - **No gaps.** About 25 seconds of speech is prepared ahead, and the next chapter loads while the current one is still finishing.
 - **Picks up where you stopped** in every chapter. **Read from the top** is on the rail.
 
@@ -67,12 +69,15 @@ A tiny local learner (a few KB per site) remembers:
 It only learns from results it could check: a jump that really loaded a new chapter, or one that clearly failed. It drops what stops working, forgets sites you haven't visited in four months, and is capped at 400 KB. You can wipe it from the start page with **Forget what it learned**.
 
 ### Library
-- **Reading list.** Save a novel with the bookmark on the rail. It keeps track of the chapter you're on and your progress, sorted into Unread, In progress and Finished.
+- **Reading list.** Every novel you listen to gets its own card by itself, showing the last chapter you read and how many chapters you've listened to. Chapters of the same novel always share one card. When a chapter is done, **Next chapter** opens and reads the one after it. The bookmark on the rail still adds or removes a novel by hand.
+- **Playlist.** Queue chapters (from any novels) and they play one after another. Paste links on the start page, press the playlist button on the rail while a chapter is open, or use the playlist button on a reading-list card. Reorder, play from any item, and clear what's been played.
 - **Favourite sites** on the start page.
 
 ### Light on your PC
 - The voice runs on the **graphics card** (DirectML) when that's faster. Otherwise it uses as few processor threads as it can at low priority. The Voice panel shows which one it chose.
-- The voice **sleeps after 4 idle minutes**, freeing its memory, and wakes when you press play.
+- The voice **sleeps after 3 idle minutes**, freeing its memory, and wakes when you press play.
+- Text goes to the voice in **short pieces**, so Stop, a jump or a new voice never waits on a long piece. The voice stops working within a second or two of pressing Stop.
+- Sound plays from the app itself, with **no separate audio process**.
 - The app's own panels **share one process**, and ad frames don't get their own processes.
 - **Built-in ad blocking** and a **capped browser cache**.
 

@@ -42,7 +42,8 @@
   #b-save[aria-pressed="true"] { color: var(--amber-text); }
   #b-save[aria-pressed="true"] .plus { display: none; }
   #b-save[aria-pressed="true"] .shape { fill: currentColor; }
-  #b-save:disabled { opacity: .35; cursor: default; background: transparent; }
+  #b-save:disabled, #b-queue:disabled { opacity: .35; cursor: default; background: transparent; }
+  #b-queue.ok { background: radial-gradient(circle at 50% 35%, var(--lamp-2), var(--lamp) 70%); color: var(--lamp-ink); }
   nav hr { width: 28px; border: 0; height: 1px; background: var(--divider); margin: 4px 0; }
 
   /* the drawer that slides out to the left */
@@ -132,6 +133,9 @@
       <hr>
       <button id="b-page" title="Read the page from the top" aria-label="Read the page from the top">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4.5h12"/><path d="M12 20V9"/><path d="M7.5 13.5L12 9l4.5 4.5"/></svg>
+      </button>
+      <button id="b-queue" title="Add this chapter to the playlist" aria-label="Add this chapter to the playlist">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h12M4 12h12M4 17.5h7"/><path d="M18 14.5v6M15 17.5h6"/></svg>
       </button>
       <button id="b-save" aria-pressed="false" title="Save this novel to your reading list" aria-label="Save to reading list">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path class="shape" d="M6.5 3.5h11v17L12 16.6l-5.5 3.9z"/><path class="plus" d="M12 7.5v5M9.5 10h5"/></svg>

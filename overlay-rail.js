@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const rail = $('rail'), panel = $('panel');
-  const bVoice = $('b-voice'), bSpeed = $('b-speed'), bAuto = $('b-auto'), bPage = $('b-page'), bSave = $('b-save'), bKeys = $('b-keys');
+  const bVoice = $('b-voice'), bSpeed = $('b-speed'), bAuto = $('b-auto'), bPage = $('b-page'), bSave = $('b-save'), bKeys = $('b-keys'), bQueue = $('b-queue');
   const speed = $('speed'), readout = $('readout'), chips = $('chips'), voices = $('voices'), where = $('where');
 
   const VOICES = [
@@ -76,6 +76,7 @@
     bAuto.title = 'Auto next chapter: ' + (s.auto ? 'on' : 'off');
     bSave.setAttribute('aria-pressed', String(!!s.saved));
     bSave.disabled = !s.canSave && !s.saved;
+    bQueue.disabled = !s.canQueue;
     bSave.title = s.saved ? 'Saved to your reading list. Click to remove' : 'Save this novel to your reading list';
     const info = s.engine && s.engine.info;
     where.textContent = info
@@ -91,6 +92,7 @@
   bAuto.onclick = () => ov.act('auto', !st.auto);
   bPage.onclick = () => ov.act('read-page');
   bSave.onclick = () => ov.act('bookmark');
+  bQueue.onclick = () => { ov.act('pl-add-page'); bQueue.classList.add('ok'); setTimeout(() => bQueue.classList.remove('ok'), 700); };
   speed.oninput = () => {
     readout.textContent = fmt(+speed.value);
     speed.style.setProperty('--fill', fillOf(+speed.value));

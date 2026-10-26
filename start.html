@@ -90,6 +90,43 @@
   .book:hover .x { display: grid; }
   .empty { text-align: center; color: var(--mist); max-width: 440px; margin: 6px auto 0; }
 
+
+  /* playlist */
+  .sub { text-align: center; color: var(--mist); margin: -6px 0 14px; font-size: 13px; }
+  form.pladd { display: flex; gap: 8px; align-items: center; height: 52px; padding: 0 6px 0 18px; border-radius: 26px; background: var(--field); box-shadow: inset 0 0 0 1px var(--ring); max-width: 640px; margin: 0 auto; }
+  form.pladd:focus-within { box-shadow: inset 0 0 0 1.5px var(--stroke); }
+  form.pladd input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 14.5px; }
+  form.pladd input::placeholder { color: var(--mist); }
+  form.pladd .primary { height: 40px; padding: 0 20px; }
+  .pl { list-style: none; margin: 12px auto 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
+  .pli { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--ring); }
+  .pli:hover { background: var(--card-hi); }
+  .pli.now { box-shadow: inset 0 0 0 1.5px var(--stroke); }
+  .pli.done { opacity: .55; }
+  .pli .no { flex: none; width: 24px; text-align: center; color: var(--mist); font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; display: grid; place-items: center; }
+  .pli .no svg { width: 15px; height: 15px; }
+  .pli.now .no { color: var(--amber-text); }
+  .pli .tx { flex: 1; min-width: 0; }
+  .pli .tx b { display: block; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pli .tx small { display: block; color: var(--mist); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ib { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--soft); }
+  .ib:hover { background: var(--field); color: var(--text); }
+  .ib svg { width: 16px; height: 16px; }
+  .ib:disabled { opacity: .3; cursor: default; background: none; }
+  .plctl { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .plctl button { white-space: nowrap; }
+  .plctl .ghost { height: 42px; padding: 0 16px; border-radius: 21px; font-weight: 600; font-size: 14px; background: var(--card); box-shadow: inset 0 0 0 1px var(--ring); }
+  .plctl .ghost:hover { background: var(--card-hi); }
+  .plempty { text-align: center; color: var(--mist); font-size: 13px; margin: 12px auto 0; max-width: 460px; }
+  .book .addq { height: 32px; width: 32px; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--field); box-shadow: inset 0 0 0 1px var(--ring); }
+  .book .addq:hover { box-shadow: inset 0 0 0 1px var(--stroke); }
+  .book .addq svg { width: 15px; height: 15px; }
+  .book .btns { display: flex; gap: 6px; }
+  .heard { font-size: 11.5px; color: var(--mist); margin-top: 4px; }
+  .book .row { flex-wrap: wrap; row-gap: 8px; }
+  .book .row .tag, .book .play { white-space: nowrap; }
+  .book .play { padding: 0 12px; }
+
   .brain { margin: 44px auto 0; max-width: 560px; text-align: center; color: var(--mist); font-size: 12.5px; }
   .brain button { color: var(--amber-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; padding: 0; }
 
@@ -119,6 +156,16 @@
   </section>
 
   <ul class="sites" id="sites" aria-label="Your sites"></ul>
+
+  <h2>Playlist</h2>
+  <p class="sub">Queue up chapters and they play one after another.</p>
+  <form class="pladd" id="plAdd">
+    <input id="plUrl" type="text" spellcheck="false" autocomplete="off" placeholder="Paste a chapter link to add (several at once is fine)" aria-label="Chapter link to add to the playlist">
+    <button class="primary" type="submit">Add</button>
+  </form>
+  <ol class="pl" id="pl"></ol>
+  <p class="plempty" id="plEmpty">Nothing queued yet. Paste links here, or open a chapter and press the playlist button on the right-hand rail.</p>
+  <div class="plctl" id="plCtl" hidden><button class="primary" type="button" id="plPlay">Play all</button><button class="ghost" type="button" id="plClearDone">Clear played</button><button class="ghost" type="button" id="plClear">Clear all</button></div>
 
   <h2>Reading list</h2>
   <div class="filters" id="filters" role="group" aria-label="Filter the reading list">

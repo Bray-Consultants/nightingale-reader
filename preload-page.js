@@ -5,7 +5,12 @@ const { ipcRenderer, contextBridge } = require('electron');
 if (location.protocol === 'file:' && /\/start\.html$/i.test(location.pathname)) {
   contextBridge.exposeInMainWorld('rb', {
     data: () => ipcRenderer.invoke('start:data'),
-    go: (url, read) => ipcRenderer.send('start:go', { url, read: !!read }),
+    go: (url, read, next) => ipcRenderer.send('start:go', { url, read: !!read, next: !!next }),
+    plAdd: (url, title) => ipcRenderer.send('start:pl-add', { url, title: title || '' }),
+    plRemove: (id) => ipcRenderer.send('start:pl-remove', { id }),
+    plUp: (id) => ipcRenderer.send('start:pl-up', { id }),
+    plPlay: (id) => ipcRenderer.send('start:pl-play', { id: id || '' }),
+    plClear: (done) => ipcRenderer.send('start:pl-clear', { done: !!done }),
     addSite: (url, name) => ipcRenderer.send('start:add-site', { url, name }),
     removeSite: (host) => ipcRenderer.send('start:remove-site', host),
     remove: (id) => ipcRenderer.send('start:remove', id),

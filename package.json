@@ -1,7 +1,7 @@
 {
   "name": "reader-browser",
   "productName": "Nightingale Reader",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A light Windows browser that reads web novels aloud with a natural voice that runs on your PC",
   "main": "main.js",
   "dependencies": {

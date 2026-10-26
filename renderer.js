@@ -37,6 +37,9 @@
   let lastTitle = '';
   let libProgSent = -1;
   let lastPosSaved = '';
+  let followArmed = false, followPending = false;   // read the chapter you click next
+  let plInfo = null;                                 // { at, n } while a playlist plays
+  const plNote = () => (plInfo ? `Playlist ${plInfo.at + 1} of ${plInfo.n}` : '');
 
   /* ---------------- saved settings ---------------- */
   const set = { voice: 'af_heart', speed: 1, auto: true };
@@ -63,7 +66,7 @@
         status: ui.status, cls: ui.cls, title: ui.title, prog: ui.prog,
         pos: ui.pos, dur: ui.dur, canSeek: !!(running && reading && reading.mode === 'page' && heard),
         voice: set.voice, speed: set.speed, auto: set.auto,
-        saved: nav.saved, canSave: nav.canSave, canSkip: !!(running && reading && reading.mode === 'page'),
+        saved: nav.saved, canSave: nav.canSave, canQueue: !!nav.url, canSkip: !!(running && reading && reading.mode === 'page'),
         pageTitle: nav.url ? nav.title : '', lastTitle,
       });
     });
@@ -80,7 +83,7 @@
   }
   function liveStatus() {
     if (!running) return;
-    say(paused ? 'Paused' : 'Reading' + (ui.nextNote ? '. ' + ui.nextNote : ''), 'live');
+    say(paused ? 'Paused' : 'Reading' + (ui.nextNote ? '. ' + ui.nextNote : plNote() ? ' · ' + plNote() : ''), 'live');
   }
 
   /* ---------------- text → chunks ---------------- */
@@ -101,10 +104,10 @@
     const res = [];
     let b = '';
     for (const x of bits) {
-      if (b && (b + ' ' + x).length > 240) { res.push(b); b = x; } else b = b ? b + ' ' + x : x;
+      if (b && (b + ' ' + x).length > 120) { res.push(b); b = x; } else b = b ? b + ' ' + x : x;
     }
     if (b) res.push(b);
-    return res.flatMap((r) => (r.length > 300 ? (r.match(/.{1,260}(\s|$)/g) || [r]).map((z) => z.trim()) : [r]));
+    return res.flatMap((r) => (r.length > 150 ? (r.match(/.{1,120}(\s|$)/g) || [r]).map((z) => z.trim()).filter(Boolean) : [r]));
   }
   function addText(out, text, para) {
     let buf = '';
@@ -112,9 +115,11 @@
       if (buf && /[\p{L}\p{N}]/u.test(buf)) out.push({ text: buf, para });
       buf = '';
     };
+    // 0.6: short pieces (about one sentence). The voice makes each piece whole before it plays,
+    // so a jump, a new voice or Stop only ever waits for one short piece, not a long one.
     for (const s of sentences(clean(text))) {
-      for (const part of (s.length > 260 ? splitLong(s) : [s])) {
-        if (buf && buf.length + part.length + 1 > 200) push();
+      for (const part of (s.length > 150 ? splitLong(s) : [s])) {
+        if (buf && buf.length + part.length + 1 > 120) push();
         buf = buf ? buf + ' ' + part : part;
       }
     }
@@ -133,6 +138,19 @@
     const i = chap.chunks.findIndex((k) => k.para >= para);
     return i < 0 ? chap.chunks.length : i;
   };
+  // The first sound after a start or a jump should come quickly: say the first few words on their
+  // own, so the voice has less to make before it can begin.
+  function quickStart(chap, n) {
+    const k = chap.chunks[n];
+    if (!k || k.text.length <= 70) return;
+    let cut = -1;
+    const re = /[,;:]\s/g; let x;
+    while ((x = re.exec(k.text))) { if (x.index >= 20 && x.index <= 70) { cut = x.index + 1; break; } }
+    if (cut < 0) { cut = k.text.lastIndexOf(' ', 50); if (cut < 20) return; }
+    const a = k.text.slice(0, cut).trim(), b = k.text.slice(cut).trim();
+    if (!a || !b) return;
+    chap.chunks.splice(n, 1, { text: a, para: k.para, at: k.at }, { text: b, para: k.para, at: k.at + cut });
+  }
 
   /* ---------------- audio ---------------- */
   function audio() {
@@ -169,7 +187,8 @@
     ui.nextNote = '';
     if (ctx && ctx.state === 'suspended') ctx.resume();
   }
-  function stopAll() {
+  function stopAll(keep) {
+    if (!keep) { if (plInfo) api.plStop(); plInfo = null; followArmed = false; followPending = false; }
     halt();
     clearTimeout(jumpTimer); jumpT = null;
     running = false;
@@ -209,7 +228,7 @@
     const rate = cps * set.speed;
     const prog = Math.min(1, at / chap.chars);
     const pos = at / rate, dur = chap.chars / rate;
-    if (Math.abs(prog - (ui.prog || 0)) > 0.002 || Math.abs(pos - ui.pos) > 0.4 || Math.abs(dur - ui.dur) > 1) {
+    if (Math.abs(prog - (ui.prog || 0)) > 0.004 || Math.abs(pos - ui.pos) > 0.9 || Math.abs(dur - ui.dur) > 2) {
       ui.prog = prog; ui.pos = pos; ui.dur = dur;
       publish();
     }
@@ -217,7 +236,7 @@
       libProgSent = prog;
       api.libProgress(chap.url, chap.title, prog, false);
     }
-  }, 150);
+  }, 250);
 
   /* ---------------- the producer: keeps the voice ~25 s ahead ---------------- */
   async function produce(my, ch, n) {
@@ -248,7 +267,7 @@
       if (!q.length) {
         // nothing more to say from what we have: fetch the next chapter, or finish
         const chap = reading.chapters[sc];
-        if (reading.mode !== 'page' || !set.auto || !chap) return finish(my, null);
+        if (reading.mode !== 'page' || !set.auto || reading.playlist || !chap) return finish(my, null);
         while (my === session && ahead() > LEAD_S) await sleep(250);    // not yet: no need to change the page early
         if (my !== session) return;
         const got = await fetchNext(my, sc);
@@ -266,6 +285,7 @@
         if (++fails >= 3) return finish(my, 'voice');
         continue;
       }
+      if (res.r && res.r.cancelled) continue;
       fails = 0;
       const sec = res.r.audio.length / res.r.sr;
       if (sec > 0.6 && job.k.text.length > 20) {   // learn speaking rate for the time display
@@ -286,7 +306,9 @@
     const chap = reading.chapters[sc];
     ui.nextNote = 'Fetching the next chapter';
     liveStatus();
-    const nx = await api.next(chap.sig, chap.url);
+    let nx = await api.next(chap.sig, chap.url, chap.title);
+    // a slow connection: wait a little and try once more before calling it a night
+    if (!nx.ok && nx.reason === 'timeout' && my === session) { await sleep(4000); if (my === session) nx = await api.next(chap.sig, chap.url, chap.title); }
     if (my !== session) return { ok: false, reason: 'cancelled' };
     ui.nextNote = '';
     if (!nx.ok) { liveStatus(); return { ok: false, reason: nx.reason }; }
@@ -294,6 +316,7 @@
     api.libProgress(chap.url, chap.title, 1, false);
     const next = makeChapter(nx.ex);
     reading.chapters[sc + 1] = next;
+    api.libTrack(next.url, next.title, nx.ex.docTitle || '');
     reading.pageCh = sc + 1;
     for (let i = 0; i < sc - 1; i++) reading.chapters[i] = null;   // keep memory flat on long nights
     ui.nextNote = 'Next up: ' + next.title;
@@ -307,6 +330,8 @@
     while (my === session && (ahead() > 0.05 || sources.size)) await sleep(150);
     if (my !== session) return;
     const chap = reading && heard ? reading.chapters[heard.ch] : null;
+    const inPlaylist = !!(reading && reading.playlist);
+    if (chap && reading.mode === 'page') api.libProgress(chap.url, chap.title, 1, false);
     let end = null;
     if (reason === 'voice') end = ['Stopped: the voice is not responding. Press Retry', 'err'];
     else if (reason === 'no-button' || reason === 'not-a-chapter') {
@@ -321,6 +346,11 @@
     api.highlight(-1);
     reading = null;
     publish();
+    if (inPlaylist && reason !== 'voice') {
+      plInfo = null;
+      if (!(await api.plNext())) say('Playlist finished');
+      return;
+    }
     if (end) say(end[0], end[1]); else idleStatus();
   }
 
@@ -333,10 +363,11 @@
     if (engine.state === 'error') { running = false; say('Voice engine failed. Press Retry', 'err'); return; }
     try { await audio().resume(); } catch (_) {}
     const chap = reading.chapters[ch];
+    quickStart(chap, n);
     ui.title = chap.title; lastTitle = chap.title;
     ui.prog = Math.min(1, (chap.chunks[n] ? chap.chunks[n].at : chap.chars) / chap.chars);
     ui.dur = chap.chars / (cps * set.speed); ui.pos = ui.prog * ui.dur;
-    if (!voiceUsable()) idleStatus(); else say(note || 'Reading', 'live');
+    if (!voiceUsable()) idleStatus(); else if (note) say(note, 'live'); else liveStatus();
     produce(my, ch, n).catch((e) => { if (my === session) { running = false; say('Stopped: ' + e.message, 'err'); } });
   }
 
@@ -361,10 +392,23 @@
     say('Finding the text…', 'live');
     const ex = opts.ex || await api.extract(opts.pt);
     if (my !== session) return;
-    if (!ex || !ex.paras || !ex.paras.length) { running = false; reading = null; say('Couldn’t find readable text on this page', 'err'); return; }
+    if (!ex || !ex.paras || !ex.paras.length) {
+      running = false; reading = null;
+      if (opts.playlist) { if (!(await api.plNext())) say('Playlist finished'); return; }
+      say('Couldn’t find readable text on this page', 'err'); return;
+    }
+    // Opened a novel's chapter list (from the start page, or by clicking): wait for you to pick a chapter
+    if (ex.isIndex && opts.auto && !opts.playlist) {
+      running = false; reading = null; followArmed = true; publish();
+      say('This is the novel’s chapter list. Click a chapter and I’ll read it from there.');
+      return;
+    }
+    followArmed = false;
     const chap = makeChapter(ex);
-    reading = { mode: 'page', pageCh: 0, chapters: [chap] };
-    let from = 0, note = 'Reading';
+    reading = { mode: 'page', pageCh: 0, chapters: [chap], playlist: !!opts.playlist };
+    if (opts.playlist) { plInfo = opts.playlist; api.plTitle(chap.url, chap.title); }
+    api.libTrack(chap.url, chap.title, ex.docTitle || '');
+    let from = 0, note = '';
     if (opts.pt && (ex.startIndex > 0 || opts.snip)) {
       from = chunkOfPara(chap, ex.startIndex);
       note = 'Reading from here';
@@ -395,6 +439,7 @@
 
   // Jump to the next chapter now and read it.
   async function skipNext() {
+    if (reading && reading.playlist) { stopAll(true); plInfo = null; if (!(await api.plNext())) say('Playlist finished'); return; }
     if (reading && reading.mode === 'page' && heard && reading.chapters[heard.ch + 1]) {
       return playFrom(heard.ch + 1, 0);
     }
@@ -407,7 +452,7 @@
     if (!base) {
       try { const cur = await api.extract(null); if (cur && cur.sig) { sig = cur.sig; from = cur.url; } } catch (_) {}
     }
-    const nx = await api.next(sig, from);
+    const nx = await api.next(sig, from, base ? base.title : '');
     if (my !== session) return;
     if (!nx.ok) {
       running = false;
@@ -417,6 +462,7 @@
       return;
     }
     reading = { mode: 'page', pageCh: 0, chapters: [makeChapter(nx.ex)] };
+    api.libTrack(nx.ex.url, reading.chapters[0].title, nx.ex.docTitle || '');
     playFrom(0, 0);
   }
 
@@ -586,8 +632,25 @@
     if (!running) idleStatus();
     else { if (voiceUsable() && /^(Loading voice|Waking|Getting|Trying)/.test(ui.status)) liveStatus(); publish(); }
   });
+  // You clicked to another page while it was reading (or after opening a chapter list):
+  // follow you there instead of carrying on with the old page's text.
+  api.on('page:user-nav', () => {
+    if ((running && reading && reading.mode === 'page') || followArmed) {
+      const keepPl = false;
+      stopAll(keepPl);
+      followPending = true;
+      say('Opening the page you picked…', 'live');
+    }
+  });
+  api.on('page:user-loaded', () => {
+    if (!followPending) return;
+    followPending = false;
+    setTimeout(() => start('page', { auto: true }), 500);
+  });
   api.on('cmd', (c) => {
-    if (c.type === 'read') read();
+    if (c.type === 'read' && (c.auto || c.playlist)) start('page', { auto: true, playlist: c.playlist || null });
+    else if (c.type === 'note') { if (running) { ui.nextNote = c.text; liveStatus(); setTimeout(() => { if (ui.nextNote === c.text) { ui.nextNote = ''; liveStatus(); } }, 2500); } else say(c.text); }
+    else if (c.type === 'read') read();
     else if (c.type === 'toggle') togglePause();
     else if (c.type === 'stop') stopAll();
     else if (c.type === 'focus-url') { el.url.focus(); el.url.select(); }
